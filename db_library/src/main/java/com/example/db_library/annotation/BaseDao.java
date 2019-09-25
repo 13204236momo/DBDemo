@@ -1,8 +1,11 @@
 package com.example.db_library.annotation;
 
+import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 
+import java.io.File;
 import java.lang.reflect.Field;
+import java.util.HashMap;
 
 public class BaseDao<T> implements IBaseDao {
 
@@ -14,6 +17,8 @@ public class BaseDao<T> implements IBaseDao {
     private Class<T> entityClass;
     //标识是否已经初始化
     private boolean isInit = false;
+    //缓存集合 （key 字段名 value 成员变量）
+    private HashMap<String, Field> cacheMap;
 
     protected boolean init(SQLiteDatabase database, Class<T> entityClass) {
         this.database = database;
@@ -30,10 +35,39 @@ public class BaseDao<T> implements IBaseDao {
                 }
                 String createTableSQL = createTableSQL();
                 database.execSQL(createTableSQL);
+                cacheMap = new HashMap<>();
+                initCacheMap();
                 isInit = true;
             }
         }
         return isInit;
+    }
+
+    private void initCacheMap() {
+        //取得所有列名
+        String sql = "select * from " + tableName + " limit 1,0";
+        Cursor cursor = database.rawQuery(sql, null);
+        String[] columnNames = cursor.getColumnNames();
+        //获取所有的成员变量
+        Field[] columnFields = entityClass.getDeclaredFields();
+        for (Field field : columnFields) {
+            field.setAccessible(true);
+        }
+        for (String columnName : columnNames) {
+            Field columnField = null;
+            for (Field field : columnFields) {
+                String fieldName = null;
+                fieldName = getColumnName(field);
+                if (columnName.equals(fieldName)){
+                    columnField = field;
+                    break;
+                }
+            }
+            if (columnField!=null){
+                cacheMap.put(columnName,columnField);
+            }
+
+        }
     }
 
     private String createTableSQL() {
@@ -86,7 +120,7 @@ public class BaseDao<T> implements IBaseDao {
     }
 
     @Override
-    public long inster(Object entity) {
+    public long insert(Object entity) {
         return 0;
     }
 }
